@@ -5,7 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](ht
 
 ## [1.3.0] - 2026-10-04
 ### Added
-- Host names from reverse DNS (`NAME_DNS`, your router) and NetBIOS. Shown in the host list
+- Host names from mDNS (unicast query to each host, needs `dnsutils`), NetBIOS, and
+  optionally reverse DNS (`NAME_DNS`, off by default). Shown in the host list
   and `summary.txt` with a `~` prefix in gray, so they are never mistaken for your labels.
 - `NAME_CHANGED` event when a labeled IP reports a different host name.
 - `DHCP_POOL` setting. Hosts in the pool are marked with `○` and raise `POOL_HOST` on arrival.

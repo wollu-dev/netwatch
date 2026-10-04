@@ -39,7 +39,8 @@ terminal dashboard for your desk.
 - **WAN watch.** Tracks your public IP and UPnP port forwards on the router.
 - **Works with DHCP.** Reserve addresses for your own devices and netwatch treats the
   router's dynamic pool as "not registered" (see [Router setup](#router-setup)).
-- **Host names** from reverse DNS and NetBIOS, shown apart from your own labels.
+- **Host names** from mDNS, NetBIOS and (if your router serves them) reverse DNS,
+  shown apart from your own labels.
 - **MAC allowlist** when the ARP table is readable (see [Limitations](#limitations)).
 - **Android notifications** via Termux:API.
 - **Live dashboard** with host list, open ports, 24-scan trend line, battery temperature
@@ -60,7 +61,7 @@ Install all Termux apps from the **same source**. Mixing F-Droid and Play Store 
 ```bash
 pkg update && pkg upgrade
 pkg install git nmap curl cronie termux-services
-pkg install termux-api miniupnpc        # optional
+pkg install termux-api miniupnpc dnsutils   # optional (dnsutils: mDNS host names)
 
 git clone https://github.com/<you>/netwatch ~/projects/netwatch
 ln -s ~/projects/netwatch/netwatch.sh $PREFIX/bin/netwatch
@@ -109,7 +110,7 @@ Edit the block at the top of `netwatch.sh`.
 | `SUBNET`      | `192.168.35.0/24`     | LAN range to scan                             |
 | `PORTS`       | common service ports  | TCP ports checked on every host               |
 | `BASE`        | `~/netwatch`          | Data directory                                |
-| `NAME_DNS`    | `192.168.35.1`        | DNS server for host-name lookups (your router); empty = off |
+| `NAME_DNS`    | empty (off)           | Router IP, if it answers reverse DNS with DHCP host names |
 | `DHCP_POOL`   | `100-199`             | Last-octet range of the router's dynamic pool; empty = off |
 | `KEEP_DAYS`   | `7`                   | How long per-scan records are kept            |
 | `DEVICE_NAME` | `s9`                  | Name shown in the dashboard                   |
@@ -164,9 +165,11 @@ To reset the baseline, delete `~/netwatch/seen_*.txt` and run a scan.
   can be missed. Your router's DHCP client list remains the most complete source.
 - **MAC addresses** come from the kernel ARP table, which Android 10+ often hides from apps.
   When it is hidden, MAC features switch off and netwatch tracks by IP.
-- **Host names** depend on the router answering reverse DNS for DHCP clients, or on the
-  device answering NetBIOS (Windows, Samba). Many IoT devices report no name at all.
-  mDNS (Apple, Chromecast) needs UDP scanning and is not used.
+- **Host names** come from the devices themselves. mDNS covers Apple devices, Chromecast
+  and most printers; NetBIOS covers Windows (only on a *Private* network profile) and Samba.
+  Many ISP routers run no LAN DNS, so reverse DNS is off by default: test with
+  `dig -x <router IP> @<router IP>` before setting `NAME_DNS`. Many Android phones and
+  IoT devices report no name at all.
 - **External ports.** Scanning your own public IP from inside the LAN goes through the
   router's NAT loopback and does not show what the internet sees. netwatch watches UPnP
   forwards instead. For a real outside view, scan from mobile data.

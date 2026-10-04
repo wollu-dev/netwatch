@@ -11,7 +11,7 @@ export LC_ALL=C.UTF-8   # char-width math for box drawing
 SUBNET="192.168.35.0/24"
 PORTS="21,22,23,53,80,135,139,443,445,554,1883,3389,5000,5357,5900,8000,8080,8443,9100,62078"
 BASE="$HOME/netwatch"
-NAME_DNS="192.168.35.1"   # router DNS for reverse lookups of host names ("" = off)
+NAME_DNS=""               # router IP, if it serves DHCP host names over DNS ("" = off)
 DHCP_POOL="100-199"       # last-octet range the router hands out dynamically ("" = off)
 KEEP_DAYS=7
 DEVICE_NAME="s9"   # shown in the dashboard sys row
