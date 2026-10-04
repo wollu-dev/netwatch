@@ -281,7 +281,7 @@ sort -u "$BASE/seen_ports.txt" "$RUN/ports.txt" -o "$BASE/seen_ports.txt"
 if [ ${#alerts[@]} -gt 0 ]; then
   for a in "${alerts[@]}"; do echo "$(date '+%F %T') $a" >> "$LOG"; done
   command -v termux-notification >/dev/null && \
-    termux-notification --id netwatch --title "netwatch // ${#alerts[@]} event(s)" \
+    timeout 10 termux-notification --id netwatch --title "netwatch // ${#alerts[@]} event(s)" \
       --content "$(printf '%s\n' "${alerts[@]}")"
 fi
 
