@@ -12,6 +12,7 @@ SUBNET="192.168.35.0/24"
 PORTS="21,22,23,53,80,135,139,443,445,554,1883,3389,5000,5357,5900,8000,8080,8443,9100,62078"
 BASE="$HOME/netwatch"
 NAME_DNS="192.168.35.1"   # router DNS for reverse lookups of host names ("" = off)
+DHCP_POOL="100-199"       # last-octet range the router hands out dynamically ("" = off)
 KEEP_DAYS=7
 DEVICE_NAME="s9"   # shown in the dashboard sys row
 MARGIN_X=2   # dashboard side margin (curved edges)
@@ -85,6 +86,13 @@ load_labels() { # labels.txt -> LABEL[ip]
   while read -r ip name; do
     [[ -z "$ip" || "$ip" == \#* ]] || LABEL[$ip]="$name"
   done < "$BASE/labels.txt"
+}
+
+# Reserved devices live outside the pool, so a pool address means "not registered".
+in_pool() { # in_pool <ip>
+  [ -n "$DHCP_POOL" ] || return 1
+  local o="${1##*.}"
+  (( o >= ${DHCP_POOL%-*} && o <= ${DHCP_POOL#*-} ))
 }
 
 # What to call a host. Your labels win; device-reported names and guesses
@@ -162,7 +170,9 @@ render() {
     lbl=$(display_name "$ip" "${NAME[$ip]:-}"); lbl="${lbl:--}"
     lcol=""; [[ "$lbl" == "~"* || "$lbl" == "-" ]] && lcol="$GRY"
     p="${PMAP[$ip]:-}"; p="${p% }"; [ -z "$p" ] && p="-"
-    if [ -n "${NEWSET[$ip]:-}" ]; then bullet="${YEL}+${R}"; else bullet="${GRN}●${R}"; fi
+    if [ -n "${NEWSET[$ip]:-}" ]; then bullet="${YEL}+${R}"
+    elif in_pool "$ip"; then bullet="${GRY}○${R}"
+    else bullet="${GRN}●${R}"; fi
     ipcol=$(printf '%-15s ' "$ip")
     lblcol="$(padr "$(fit "$lbl" 10)" 10) "
     room=$((BW - 4 - ${#ipcol} - ${#lblcol}))
@@ -305,8 +315,17 @@ first_run=false
 touch "$BASE/seen_hosts.txt" "$BASE/seen_ports.txt" "$BASE/seen_upnp.txt" "$RUN/new_hosts.txt"
 
 if ! $first_run; then
-  comm -13 "$BASE/seen_hosts.txt" "$RUN/hosts.txt" > "$RUN/new_hosts.txt"
+  # pool addresses are reused by whoever connects, so "never seen" means nothing there
+  comm -13 "$BASE/seen_hosts.txt" "$RUN/hosts.txt" \
+    | while read -r h; do in_pool "$h" || echo "$h"; done > "$RUN/new_hosts.txt"
   while read -r h; do [ -n "$h" ] && alert NEW_HOST "$h"; done < "$RUN/new_hosts.txt"
+  # instead, report each arrival in the pool (online now, not in the previous run)
+  prev=$(cat "$BASE/last_run" 2>/dev/null)
+  while read -r h; do
+    in_pool "$h" || continue
+    grep -qxF "$h" "$prev/hosts.txt" 2>/dev/null && continue
+    alert POOL_HOST "$h (${HNAME[$h]:--})"
+  done < "$RUN/hosts.txt"
   while read -r p; do [ -n "$p" ] && alert NEW_PORT "$p"; done \
     < <(comm -13 "$BASE/seen_ports.txt" "$RUN/ports.txt")
 fi
