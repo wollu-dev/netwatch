@@ -16,7 +16,7 @@ See [What netwatch is not](#what-netwatch-is-not).
   │ wan    203.0.113.7                       │
   │ lan    192.168.35.0/24                   │
   │ scan   14:00 · 32m ago · 200s · next 28m │
-  │ trend  ▃▃▄▅▅▆▇█▇▆▅▅▄▃▃▃▄▅▅▆▇▇▆▅          │
+  │ trend  ▃▃▄▅▅▆▇█▇▆▅▅▄▃▃         │
   │ batt   82% · 31.2°C · charging           │
   ╰──────────────────────────────────────────╯
 
