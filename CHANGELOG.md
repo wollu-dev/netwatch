@@ -11,6 +11,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](ht
 - `NAME_CHANGED` event when a labeled IP reports a different host name.
 - `DHCP_POOL` setting. Hosts in the pool are marked with `○` and raise `POOL_HOST` on arrival.
 - README section on DHCP reservations and pool layout.
+- README section "What netwatch is not": it is a desk display that notices the obvious,
+  not a security monitor, with what it can and cannot detect.
 ### Changed
 - Hosts in `DHCP_POOL` no longer raise `NEW_HOST`.
 - The `.1` gateway guess is shown as `~gateway`.

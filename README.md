@@ -1,11 +1,14 @@
 # netwatch
 
-> Turn a spare Android phone into an always-on home network watchdog. No root required.
+> Turn a spare Android phone into a desk display that keeps an eye on your home network. No root required.
 
 netwatch is a single Bash script for [Termux](https://termux.dev). Every hour it scans
-your LAN with nmap, remembers every device and open port it has ever seen, and pings
-your phone the moment something new shows up. Between scans it doubles as a live
-terminal dashboard for your desk.
+your LAN with nmap, remembers the devices and open ports it has seen, and notifies you
+when something new shows up. Between scans it is a live terminal dashboard for your desk.
+
+It is a desk gadget first: a pleasant way to see what is on your network and to notice the
+obvious. It is **not** a security monitor and will not catch someone who is trying to hide.
+See [What netwatch is not](#what-netwatch-is-not).
 
 ```
   ╭─[ NETWATCH ]──────────────[ ● 14:32:07 ]─╮
@@ -35,7 +38,8 @@ terminal dashboard for your desk.
 
 - **Host discovery and port scan** of your LAN every hour, using unprivileged nmap.
 - **Baseline diffing.** Alerts only on hosts, ports and UPnP forwards never seen before,
-  so a phone dropping off Wi-Fi and coming back does not spam you.
+  so a device with a fixed IP dropping off Wi-Fi and coming back does not spam you.
+  (Devices in the DHCP pool raise `POOL_HOST` on every arrival.)
 - **WAN watch.** Tracks your public IP and UPnP port forwards on the router.
 - **Works with DHCP.** Reserve addresses for your own devices and netwatch treats the
   router's dynamic pool as "not registered" (see [Router setup](#router-setup)).
@@ -142,6 +146,13 @@ netwatch identifies devices by IP. With DHCP, IPs can change, so pin your own de
 Anything that then appears in the pool is a device you have not registered: a guest,
 a new gadget, or something that should not be there.
 
+The split is a convention that well-behaved devices follow, not a security boundary.
+Anyone on your network can set their own IP outside the pool, or reuse one of yours.
+
+If your router allows only a few reservations, set a manual IP on the device itself
+(Wi-Fi settings → IP → static), outside the pool. Use the router's address as the gateway
+and keep the DNS servers the device already receives.
+
 ## Events
 
 Logged to `~/netwatch/alerts.log` as `YYYY-MM-DD HH:MM:SS TAG detail`.
@@ -158,6 +169,36 @@ Logged to `~/netwatch/alerts.log` as `YYYY-MM-DD HH:MM:SS TAG detail`.
 | `SCAN_EMPTY`  | A scan finds nothing (Wi-Fi down, wrong subnet) |
 
 To reset the baseline, delete `~/netwatch/seen_*.txt` and run a scan.
+
+## What netwatch is not
+
+netwatch looks at your network from the outside, one hour at a time, by IP address.
+Without root it cannot see link-layer (MAC) data on modern Android, and it cannot
+tell two devices apart if they use the same IP. That makes it good at noticing the
+honest and the careless, and blind to anyone deliberately avoiding it.
+
+| Someone on your network who... | netwatch |
+|---|---|
+| picks an IP outside the pool that was never used | raises `NEW_HOST` |
+| opens a port not seen before | raises `NEW_PORT` |
+| reuses an IP that was seen before, even once | stays quiet (the baseline is cumulative) |
+| takes the IP of one of your devices while it is off | stays quiet |
+| does that and answers no name queries | stays quiet (a name disappearing is ignored) |
+| ignores pings and closes every probed port | is never seen |
+| connects and leaves between two scans | is never seen |
+| reports a host name | name shown as a hint; names can be anything |
+
+What actually keeps people out lives on the router:
+
+1. WPA2/WPA3 with a long passphrase, and **WPS turned off**.
+2. A separate guest network, so visitors cannot reach your devices.
+3. A changed router admin password (not the one on the sticker), and current firmware.
+4. The router's list of connected **wireless clients**. It shows every associated MAC,
+   including devices that set their own IP and never asked DHCP. Checking it now and then
+   is a better audit than anything netwatch can do from a phone.
+
+Use netwatch to enjoy watching your network, and to spot the new smart plug, the guest
+who never left, or the port you forgot to close. Do not rely on it to detect an intruder.
 
 ## Limitations
 
