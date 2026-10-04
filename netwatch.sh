@@ -19,7 +19,7 @@ MARGIN_X=2   # dashboard side margin (curved edges)
 MARGIN_Y=1   # dashboard top margin
 # ----------------------------
 
-VERSION="1.2"
+VERSION="1.3"
 SELF="$(readlink -f "$0")"
 LOG="$BASE/alerts.log"
 LOCK="$BASE/.scanning"

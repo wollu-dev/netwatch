@@ -18,16 +18,17 @@ terminal dashboard for your desk.
   ╰──────────────────────────────────────────╯
 
   ▌ HOSTS // 5 online
-    ● 192.168.35.1    gateway    53 80 443
+    ● 192.168.35.1    ~gateway   53 80 443
     ● 192.168.35.12   desktop    135 445 3389
     ● 192.168.35.23   s9         8022
-    ● 192.168.35.57   -          -
-    + 192.168.35.140  -          -
+    + 192.168.35.57   -          -
+    ○ 192.168.35.140  ~galaxy-s9 62078
 
   ▌ EVENTS // last 5
-    10-03 14:03 NEW_HOST 192.168.35.140
+    10-03 13:02 NEW_HOST 192.168.35.57
+    10-03 14:03 POOL_HOST 192.168.35.140 (galaxy-s9)
 
-  ❯ netwatch v1.2 · [r]escan · [q]uit  ⠋
+  ❯ netwatch v1.3 · [r]escan · [q]uit  ⠋
 ```
 
 ## Features
@@ -36,6 +37,9 @@ terminal dashboard for your desk.
 - **Baseline diffing.** Alerts only on hosts, ports and UPnP forwards never seen before,
   so a phone dropping off Wi-Fi and coming back does not spam you.
 - **WAN watch.** Tracks your public IP and UPnP port forwards on the router.
+- **Works with DHCP.** Reserve addresses for your own devices and netwatch treats the
+  router's dynamic pool as "not registered" (see [Router setup](#router-setup)).
+- **Host names** from reverse DNS and NetBIOS, shown apart from your own labels.
 - **MAC allowlist** when the ARP table is readable (see [Limitations](#limitations)).
 - **Android notifications** via Termux:API.
 - **Live dashboard** with host list, open ports, 24-scan trend line, battery temperature
@@ -105,6 +109,8 @@ Edit the block at the top of `netwatch.sh`.
 | `SUBNET`      | `192.168.35.0/24`     | LAN range to scan                             |
 | `PORTS`       | common service ports  | TCP ports checked on every host               |
 | `BASE`        | `~/netwatch`          | Data directory                                |
+| `NAME_DNS`    | `192.168.35.1`        | DNS server for host-name lookups (your router); empty = off |
+| `DHCP_POOL`   | `100-199`             | Last-octet range of the router's dynamic pool; empty = off |
 | `KEEP_DAYS`   | `7`                   | How long per-scan records are kept            |
 | `DEVICE_NAME` | `s9`                  | Name shown in the dashboard                   |
 | `MARGIN_X`    | `2`                   | Dashboard side margin; raise for curved edges |
@@ -113,7 +119,27 @@ Edit the block at the top of `netwatch.sh`.
 Optional files in `~/netwatch` (samples in [`examples/`](examples)):
 
 - `labels.txt` – `IP name` per line, shown in the host list. Keep names ASCII, ≤ 10 chars.
+  Label only reserved addresses: a label on a dynamic address will follow the address,
+  not the device.
 - `known_macs.txt` – MAC allowlist. Any other MAC raises `UNKNOWN_MAC`.
+
+In the host list, a plain name is your label. A name starting with `~` was reported by the
+device itself (or, for `~gateway`, guessed). Devices can report any name, so treat `~` names
+as hints, not identity. A gray `○` marks a host in the DHCP pool.
+
+## Router setup
+
+netwatch identifies devices by IP. With DHCP, IPs can change, so pin your own devices:
+
+1. In the router's DHCP settings, shrink the dynamic pool, e.g. `.100`–`.199`.
+2. Add a DHCP reservation (static lease) for each of your devices, outside the pool,
+   e.g. `.2`–`.99`. Reservations are keyed by MAC.
+3. On phones and laptops, turn off **private / random MAC** for your home Wi-Fi.
+   Otherwise the device may show up with a new MAC and miss its reservation.
+4. Set `DHCP_POOL` to match, and label the reserved addresses in `labels.txt`.
+
+Anything that then appears in the pool is a device you have not registered: a guest,
+a new gadget, or something that should not be there.
 
 ## Events
 
@@ -121,7 +147,9 @@ Logged to `~/netwatch/alerts.log` as `YYYY-MM-DD HH:MM:SS TAG detail`.
 
 | Tag           | Raised when                                   |
 |---------------|-----------------------------------------------|
-| `NEW_HOST`    | An IP appears that has never been seen        |
+| `NEW_HOST`    | An IP outside the DHCP pool appears for the first time |
+| `POOL_HOST`   | A host comes online in the DHCP pool (not online in the previous scan) |
+| `NAME_CHANGED`| A labeled IP reports a different host name than before |
 | `NEW_PORT`    | A host exposes a port never seen before       |
 | `NEW_UPNP`    | A new UPnP port forward appears on the router |
 | `WAN_CHANGED` | Your public IP changes                        |
@@ -136,6 +164,9 @@ To reset the baseline, delete `~/netwatch/seen_*.txt` and run a scan.
   can be missed. Your router's DHCP client list remains the most complete source.
 - **MAC addresses** come from the kernel ARP table, which Android 10+ often hides from apps.
   When it is hidden, MAC features switch off and netwatch tracks by IP.
+- **Host names** depend on the router answering reverse DNS for DHCP clients, or on the
+  device answering NetBIOS (Windows, Samba). Many IoT devices report no name at all.
+  mDNS (Apple, Chromecast) needs UDP scanning and is not used.
 - **External ports.** Scanning your own public IP from inside the LAN goes through the
   router's NAT loopback and does not show what the internet sees. netwatch watches UPnP
   forwards instead. For a real outside view, scan from mobile data.
