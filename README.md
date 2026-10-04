@@ -21,14 +21,14 @@ See [What netwatch is not](#what-netwatch-is-not).
   ╰──────────────────────────────────────────╯
 
   ▌ HOSTS // 5 online
-    ● 192.168.35.1    ~gateway   53 80 443
+    ● 192.168.35.1    gateway    53 80 443
     ● 192.168.35.12   desktop    135 445 3389
     ● 192.168.35.23   s9         8022
-    + 192.168.35.57   -          -
+    ! 192.168.35.57   -          -
     ○ 192.168.35.140  ~galaxy-s9 62078
 
   ▌ EVENTS // last 5
-    10-03 13:02 NEW_HOST 192.168.35.57
+    10-03 13:02 UNLISTED_HOST 192.168.35.57 (-)
     10-03 14:03 POOL_HOST 192.168.35.140 (galaxy-s9)
 
   ❯ netwatch v1.3 · [r]escan · [q]uit  ⠋
@@ -125,12 +125,15 @@ Optional files in `~/netwatch` (samples in [`examples/`](examples)):
 
 - `labels.txt` – `IP name` per line, shown in the host list. Keep names ASCII, ≤ 10 chars.
   Label only reserved addresses: a label on a dynamic address will follow the address,
-  not the device.
+  not the device. **It is also the allowlist:** once it has any entry, every host outside
+  `DHCP_POOL` that is not listed raises `UNLISTED_HOST` each time it comes online, even if
+  it was seen before. List all your fixed devices, the router included.
 - `known_macs.txt` – MAC allowlist. Any other MAC raises `UNKNOWN_MAC`.
 
 In the host list, a plain name is your label. A name starting with `~` was reported by the
 device itself (or, for `~gateway`, guessed). Devices can report any name, so treat `~` names
-as hints, not identity. A gray `○` marks a host in the DHCP pool.
+as hints, not identity. A gray `○` marks a host in the DHCP pool, a red `!` a host outside
+the pool that is not in `labels.txt`.
 
 ## Router setup
 
@@ -159,7 +162,8 @@ Logged to `~/netwatch/alerts.log` as `YYYY-MM-DD HH:MM:SS TAG detail`.
 
 | Tag           | Raised when                                   |
 |---------------|-----------------------------------------------|
-| `NEW_HOST`    | An IP outside the DHCP pool appears for the first time |
+| `UNLISTED_HOST` | A host outside the DHCP pool and not in `labels.txt` comes online (not online in the previous scan) |
+| `NEW_HOST`    | An IP outside the DHCP pool appears for the first time (only while `labels.txt` is empty) |
 | `POOL_HOST`   | A host comes online in the DHCP pool (not online in the previous scan) |
 | `NAME_CHANGED`| A labeled IP reports a different host name than before |
 | `NEW_PORT`    | A host exposes a port never seen before       |
@@ -179,9 +183,9 @@ honest and the careless, and blind to anyone deliberately avoiding it.
 
 | Someone on your network who... | netwatch |
 |---|---|
-| picks an IP outside the pool that was never used | raises `NEW_HOST` |
+| picks an IP outside the pool that is not in `labels.txt` | raises `UNLISTED_HOST` on every arrival |
+| does the same without a `labels.txt` | raises `NEW_HOST` once; stays quiet on later visits |
 | opens a port not seen before | raises `NEW_PORT` |
-| reuses an IP that was seen before, even once | stays quiet (the baseline is cumulative) |
 | takes the IP of one of your devices while it is off | stays quiet |
 | does that and answers no name queries | stays quiet (a name disappearing is ignored) |
 | ignores pings and closes every probed port | is never seen |

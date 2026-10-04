@@ -10,11 +10,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](ht
   and `summary.txt` with a `~` prefix in gray, so they are never mistaken for your labels.
 - `NAME_CHANGED` event when a labeled IP reports a different host name.
 - `DHCP_POOL` setting. Hosts in the pool are marked with `○` and raise `POOL_HOST` on arrival.
+- `labels.txt` doubles as an allowlist. Hosts outside `DHCP_POOL` that are not listed raise
+  `UNLISTED_HOST` on every arrival, even if seen before, and show a red `!` on the dashboard.
 - README section on DHCP reservations and pool layout.
 - README section "What netwatch is not": it is a desk display that notices the obvious,
   not a security monitor, with what it can and cannot detect.
 ### Changed
 - Hosts in `DHCP_POOL` no longer raise `NEW_HOST`.
+- `NEW_HOST` is raised only while `labels.txt` is empty; `UNLISTED_HOST` replaces it otherwise.
 - The `.1` gateway guess is shown as `~gateway`.
 - The port scan skips reverse DNS (`-n`).
 ### Fixed

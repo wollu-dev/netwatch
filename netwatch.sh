@@ -95,6 +95,12 @@ in_pool() { # in_pool <ip>
   (( o >= ${DHCP_POOL%-*} && o <= ${DHCP_POOL#*-} ))
 }
 
+# Once labels.txt lists your devices, it is the allowlist for addresses outside the
+# pool: "never seen before" is too weak, since one visit makes an IP known forever.
+unlisted() { # unlisted <ip>; needs LABEL loaded
+  (( ${#LABEL[@]} > 0 )) && ! in_pool "$1" && [ -z "${LABEL[$1]:-}" ]
+}
+
 # What to call a host. Your labels win; device-reported names and guesses
 # get a "~" so they never look like something you confirmed.
 display_name() { # display_name <ip> <discovered name>
@@ -170,7 +176,8 @@ render() {
     lbl=$(display_name "$ip" "${NAME[$ip]:-}"); lbl="${lbl:--}"
     lcol=""; [[ "$lbl" == "~"* || "$lbl" == "-" ]] && lcol="$GRY"
     p="${PMAP[$ip]:-}"; p="${p% }"; [ -z "$p" ] && p="-"
-    if [ -n "${NEWSET[$ip]:-}" ]; then bullet="${YEL}+${R}"
+    if unlisted "$ip"; then bullet="${RED}!${R}"
+    elif [ -n "${NEWSET[$ip]:-}" ]; then bullet="${YEL}+${R}"
     elif in_pool "$ip"; then bullet="${GRY}○${R}"
     else bullet="${GRN}●${R}"; fi
     ipcol=$(printf '%-15s ' "$ip")
@@ -327,24 +334,33 @@ first_run=false
 [ -s "$BASE/seen_hosts.txt" ] || first_run=true
 touch "$BASE/seen_hosts.txt" "$BASE/seen_ports.txt" "$BASE/seen_upnp.txt" "$RUN/new_hosts.txt"
 
+load_labels
+prev=$(cat "$BASE/last_run" 2>/dev/null)
+arrived() { ! grep -qxF "$1" "$prev/hosts.txt" 2>/dev/null; }  # not online last scan
+
 if ! $first_run; then
   # pool addresses are reused by whoever connects, so "never seen" means nothing there
   comm -13 "$BASE/seen_hosts.txt" "$RUN/hosts.txt" \
     | while read -r h; do in_pool "$h" || echo "$h"; done > "$RUN/new_hosts.txt"
-  while read -r h; do [ -n "$h" ] && alert NEW_HOST "$h"; done < "$RUN/new_hosts.txt"
-  # instead, report each arrival in the pool (online now, not in the previous run)
-  prev=$(cat "$BASE/last_run" 2>/dev/null)
+  # with an allowlist, UNLISTED_HOST below covers these
+  (( ${#LABEL[@]} > 0 )) || while read -r h; do
+    [ -n "$h" ] && alert NEW_HOST "$h"
+  done < "$RUN/new_hosts.txt"
+  # instead, report each arrival in the pool
   while read -r h; do
-    in_pool "$h" || continue
-    grep -qxF "$h" "$prev/hosts.txt" 2>/dev/null && continue
-    alert POOL_HOST "$h (${HNAME[$h]:--})"
+    in_pool "$h" && arrived "$h" && alert POOL_HOST "$h (${HNAME[$h]:--})"
   done < "$RUN/hosts.txt"
   while read -r p; do [ -n "$p" ] && alert NEW_PORT "$p"; done \
     < <(comm -13 "$BASE/seen_ports.txt" "$RUN/ports.txt")
 fi
 
+# Not baseline-based, so it runs on the first scan too. Alerts on each arrival, not
+# every hour; the dashboard keeps showing the host while it stays.
+while read -r h; do
+  [ -n "$h" ] && unlisted "$h" && arrived "$h" && alert UNLISTED_HOST "$h (${HNAME[$h]:--})"
+done < "$RUN/hosts.txt"
+
 # A labeled (reserved) IP reporting a different name may now be another device.
-load_labels
 declare -A LASTNAME=()
 [ -f "$BASE/last_names.txt" ] && while read -r ip n; do
   [ -n "$ip" ] && LASTNAME[$ip]="$n"

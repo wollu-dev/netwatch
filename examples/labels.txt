@@ -1,4 +1,6 @@
 # IP            label (ASCII, max 10 chars)
+# Also the allowlist: any host outside DHCP_POOL that is not listed here raises
+# UNLISTED_HOST. List every fixed device, the router included.
 192.168.35.1    gateway
 192.168.35.12   desktop
 192.168.35.23   s9
