@@ -140,21 +140,23 @@ the pool that is not in `labels.txt`.
 netwatch identifies devices by IP. With DHCP, IPs can change, so pin your own devices:
 
 1. In the router's DHCP settings, shrink the dynamic pool, e.g. `.100`–`.199`.
-2. Add a DHCP reservation (static lease) for each of your devices, outside the pool,
-   e.g. `.2`–`.99`. Reservations are keyed by MAC.
-3. On phones and laptops, turn off **private / random MAC** for your home Wi-Fi.
-   Otherwise the device may show up with a new MAC and miss its reservation.
-4. Set `DHCP_POOL` to match, and label the reserved addresses in `labels.txt`.
+2. Give each of your devices a fixed address outside the pool, e.g. `.2`–`.99`, in one of two ways:
+   - **DHCP reservation** (static lease) on the router, keyed by MAC. Some routers allow only
+     a few, or only inside the pool.
+   - **Manual IP** on the device itself (network settings → IP → static/manual). Use the router's
+     address as the gateway and keep the DNS servers the device already receives. On phones and
+     laptops this is saved per Wi-Fi network, so other networks are not affected.
+3. Check the device's private (random) MAC setting. *Off* and *Fixed* (one stable address per
+   network) are both fine; avoid *Rotating* or
+   *Change daily*. A reservation needs the MAC to stay the same. A manual IP does not, but a
+   stable MAC keeps the device recognizable in the router's client list.
+4. Set `DHCP_POOL` to match, and list the fixed addresses in `labels.txt`.
 
 Anything that then appears in the pool is a device you have not registered: a guest,
 a new gadget, or something that should not be there.
 
 The split is a convention that well-behaved devices follow, not a security boundary.
 Anyone on your network can set their own IP outside the pool, or reuse one of yours.
-
-If your router allows only a few reservations, set a manual IP on the device itself
-(Wi-Fi settings → IP → static), outside the pool. Use the router's address as the gateway
-and keep the DNS servers the device already receives.
 
 ## Events
 
