@@ -1,0 +1,5 @@
+# MAC allowlist. One MAC per line; anything after it is a comment.
+# Turn off "private / random MAC" on your own devices, or list the randomized one.
+02:00:00:aa:bb:01  desktop
+02:00:00:aa:bb:02  laptop
+02:00:00:aa:bb:03  phone

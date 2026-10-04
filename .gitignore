@@ -1,0 +1,40 @@
+# ---- netwatch runtime data ----
+# Normally lives in ~/netwatch, outside the repo. Ignored here in case the repo
+# is cloned into ~/netwatch or the tool is run from the repo directory.
+runs/
+alerts.log
+summary.txt
+last_run
+public_ip
+seen_*.txt
+.scanning
+*.gnmap
+*.nmap
+*.xml
+
+# Personal config: contains real IPs / MACs of your devices
+labels.txt
+known_macs.txt
+!examples/labels.txt
+!examples/known_macs.txt
+
+# ---- secrets ----
+.env
+*.env
+router.conf
+
+# ---- AI agent local files ----
+CLAUDE.local.md
+.claude/settings.local.json
+
+# ---- editors ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini

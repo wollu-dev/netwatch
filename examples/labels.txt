@@ -1,0 +1,4 @@
+# IP            label (ASCII, max 10 chars)
+192.168.35.1    gateway
+192.168.35.12   desktop
+192.168.35.23   s9
