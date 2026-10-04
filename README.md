@@ -23,7 +23,7 @@ See [What netwatch is not](#what-netwatch-is-not).
   ▌ HOSTS // 5 online
     ● 192.168.35.1    gateway    53 80 443
     ● 192.168.35.12   desktop    135 445 3389
-    ● 192.168.35.23   s9         8022
+    ● 192.168.35.23   phone      8022
     ! 192.168.35.57   -          -
     ○ 192.168.35.140  ~galaxy-s9 62078
 
