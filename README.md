@@ -31,12 +31,13 @@ See [What netwatch is not](#what-netwatch-is-not).
     10-03 13:02 UNLISTED_HOST 192.168.35.57 (-)
     10-03 14:03 POOL_HOST 192.168.35.140 (galaxy-s9)
 
-  ❯ netwatch v1.3 · [r]escan · [q]uit  ⠋
+  ❯ netwatch v1.4 · [r]escan · [q]uit  ⠋
 ```
 
 ## Features
 
-- **Host discovery and port scan** of your LAN every hour, using unprivileged nmap.
+- **Host discovery and port scan** of your LAN every hour, using unprivileged nmap, plus a
+  no-root check that also finds firewalled PCs and idle phones.
 - **Baseline diffing.** Alerts only on hosts, ports and UPnP forwards never seen before,
   so a device with a fixed IP dropping off Wi-Fi and coming back does not spam you.
   (Devices in the DHCP pool raise `POOL_HOST` on every arrival.)
@@ -118,6 +119,7 @@ Edit the block at the top of `netwatch.sh`.
 | `DHCP_POOL`   | `100-199`             | Last-octet range of the router's dynamic pool; empty = off |
 | `KEEP_DAYS`   | `7`                   | How long per-scan records are kept            |
 | `DEVICE_NAME` | `s9`                  | Name shown in the dashboard                   |
+| `SILENT_PROBE`| `1`                   | Also find hosts that drop all probes (adds ~20 s per scan); `0` = off |
 | `MARGIN_X`    | `2`                   | Dashboard side margin; raise for curved edges |
 | `MARGIN_Y`    | `1`                   | Dashboard top margin                          |
 
@@ -207,7 +209,7 @@ honest and the careless, and blind to anyone deliberately avoiding it.
 | opens a port not seen before | raises `NEW_PORT` |
 | takes the IP of one of your devices while it is off | stays quiet |
 | does that and answers no name queries | stays quiet (a name disappearing is ignored) |
-| ignores pings and closes every probed port | is never seen |
+| ignores pings and drops every probe | is found by the silent-host check (it must still answer ARP) |
 | connects and leaves between two scans | is never seen |
 | reports a host name | name shown as a hint; names can be anything |
 
@@ -225,8 +227,12 @@ who never left, or the port you forgot to close. Do not rely on it to detect an 
 
 ## Limitations
 
-- **No root, so no ARP scan.** Hosts that block every probed port and ignore TCP pings
-  can be missed. Your router's DHCP client list remains the most complete source.
+- **No root, so no ARP scan.** Hosts that drop every probe (Windows on a *Public* network,
+  idle phones) are still found by the silent-host check (`SILENT_PROBE`): before any TCP
+  connect the kernel has to ARP the address, so an empty address fails fast with
+  "No route to host" while a present one times out or refuses. A phone in deep sleep can
+  answer ARP too late and be missed for a scan. Your router's client list remains the most
+  complete source.
 - **MAC addresses** come from the kernel ARP table, which Android 10+ often hides from apps.
   When it is hidden, MAC features switch off and netwatch tracks by IP.
 - **Host names** come from the devices themselves. mDNS covers Apple devices, Chromecast

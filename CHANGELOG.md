@@ -3,6 +3,13 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](https://semver.org/).
 
+## [1.4.0] - 2026-10-04
+### Added
+- Silent-host check (`SILENT_PROBE`, on by default). Finds hosts that drop every probe,
+  such as Windows on a *Public* network or idle phones, without root: a TCP connect to an
+  empty LAN address fails with "No route to host" after the kernel's ARP gives up, while a
+  present host times out or refuses. Found hosts are stored in `runs/*/silent.txt`.
+
 ## [1.3.0] - 2026-10-04
 ### Added
 - Host names from mDNS (unicast query to each host, needs `dnsutils`), NetBIOS, and

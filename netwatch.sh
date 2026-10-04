@@ -13,13 +13,14 @@ PORTS="21,22,23,53,80,135,139,443,445,554,1883,3389,5000,5357,5900,8000,8080,844
 BASE="$HOME/netwatch"
 NAME_DNS=""               # router IP, if it serves DHCP host names over DNS ("" = off)
 DHCP_POOL="100-199"       # last-octet range the router hands out dynamically ("" = off)
+SILENT_PROBE=1            # find hosts that drop all probes via kernel ARP (0 = off)
 KEEP_DAYS=7
 DEVICE_NAME="s9"   # shown in the dashboard sys row
 MARGIN_X=2   # dashboard side margin (curved edges)
 MARGIN_Y=1   # dashboard top margin
 # ----------------------------
 
-VERSION="1.3"
+VERSION="1.4"
 SELF="$(readlink -f "$0")"
 LOG="$BASE/alerts.log"
 LOCK="$BASE/.scanning"
@@ -89,6 +90,16 @@ load_labels() { # labels.txt -> LABEL[ip]
 }
 
 # Reserved devices live outside the pool, so a pool address means "not registered".
+subnet_hosts() { # subnet_hosts <a.b.c.d/n>: usable addresses, one per line
+  local a b c d n="${1#*/}" base i x
+  IFS=. read -r a b c d <<< "${1%/*}"
+  base=$(( ((a << 24) | (b << 16) | (c << 8) | d) & ((0xFFFFFFFF << (32 - n)) & 0xFFFFFFFF) ))
+  for ((i = 1; i < (1 << (32 - n)) - 1; i++)); do
+    x=$((base + i))
+    echo "$((x >> 24 & 255)).$((x >> 16 & 255)).$((x >> 8 & 255)).$((x & 255))"
+  done
+}
+
 in_pool() { # in_pool <ip>
   [ -n "$DHCP_POOL" ] || return 1
   local o="${1##*.}"
@@ -277,6 +288,22 @@ done | sort -u > "$RUN/ports.txt"
 # a host is "online" if it answered discovery or has any open port
 { awk '/Status: Up/{print $2}' "$RUN/ping.gnmap"; awk '{print $1}' "$RUN/ports.txt"; } \
   | sort -u > "$RUN/hosts.txt"
+
+# ---- 1a) silent hosts (firewalled PCs, sleeping phones) ----
+# A host that drops every probe looks the same to nmap as an empty address. But the kernel
+# must ARP a LAN address before a TCP connect: an empty one fails in ~3s with "No route to
+# host", a present one answers ARP and then times out or refuses. No root, no ARP table.
+if [ "$SILENT_PROBE" = 1 ] && [ "${SUBNET#*/}" -ge 22 ] 2>/dev/null; then   # /22+: ~1000 probes max
+  n=0
+  while read -r ip; do
+    grep -qxF "$ip" "$RUN/hosts.txt" && continue
+    { err=$(timeout 5 bash -c "echo > /dev/tcp/$ip/9" 2>&1); rc=$?
+      [[ $rc -eq 0 || $rc -eq 124 || "$err" == *refused* ]] && echo "$ip"; } &
+    (( ++n % 64 == 0 )) && wait   # bounded batches: the phone, not the LAN, is the limit
+  done < <(subnet_hosts "$SUBNET") > "$RUN/silent.txt"
+  wait
+  sort -u "$RUN/hosts.txt" "$RUN/silent.txt" -o "$RUN/hosts.txt"
+fi
 
 [ -s "$RUN/hosts.txt" ] || alert SCAN_EMPTY "no hosts (check wifi / SUBNET)"
 
