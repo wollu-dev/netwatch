@@ -285,6 +285,19 @@ add_name() { # add_name <ip> <raw name> <source>; first source wins
 while read -r ip n; do add_name "$ip" "$n" rdns; done < <(
   awk '/Status: Up/ { n=$3; gsub(/[()]/, "", n); if (n != "") print $2, n }' "$RUN/ping.gnmap")
 
+# mDNS (Apple, Chromecast, printers): ask each host directly on 5353. A unicast query
+# gets a unicast answer, so this works without root or a multicast lock. Needs dnsutils.
+if command -v dig >/dev/null; then
+  while read -r ip; do
+    [ -z "$ip" ] || [ -n "${HNAME[$ip]:-}" ] && continue
+    { n=$(timeout 4 dig -x "$ip" @"$ip" -p 5353 +short +time=2 +tries=1 2>/dev/null \
+            | grep -v '^;' | head -n 1)
+      [ -n "$n" ] && echo "$ip $n"; } &
+  done < "$RUN/hosts.txt" > "$RUN/mdns.txt"
+  wait
+  while read -r ip n; do add_name "$ip" "$n" mdns; done < "$RUN/mdns.txt"
+fi
+
 # NetBIOS for the rest (Windows / Samba). Optional: a failure just leaves names empty.
 grep -vxF -f <(printf '%s\n' "${!HNAME[@]}") "$RUN/hosts.txt" > "$RUN/nameless.txt"
 if [ -s "$RUN/nameless.txt" ]; then
