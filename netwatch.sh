@@ -11,6 +11,7 @@ export LC_ALL=C.UTF-8   # char-width math for box drawing
 SUBNET="192.168.35.0/24"
 PORTS="21,22,23,53,80,135,139,443,445,554,1883,3389,5000,5357,5900,8000,8080,8443,9100,62078"
 BASE="$HOME/netwatch"
+NAME_DNS="192.168.35.1"   # router DNS for reverse lookups of host names ("" = off)
 KEEP_DAYS=7
 DEVICE_NAME="s9"   # shown in the dashboard sys row
 MARGIN_X=2   # dashboard side margin (curved edges)
@@ -30,7 +31,7 @@ E=$'\e'; R="$E[0m"; BLD="$E[1m"; GRY="$E[90m"
 GRN="$E[32m"; CYN="$E[36m"; YEL="$E[33m"; RED="$E[31m"
 SPIN=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
 
-declare -A PMAP LABEL NEWSET
+declare -A PMAP LABEL NEWSET NAME
 DATA_KEY=""; LOG_MTIME=""
 
 rep() { local s="" i; for ((i=0; i<$2; i++)); do s+="$1"; done; printf '%s' "$s"; }
@@ -77,6 +78,24 @@ read_batt() {
   awk -v t="${tmp:-0}" 'BEGIN{exit !(t>=40)}' && BCOL="$RED"   # hot battery = red
 }
 
+load_labels() { # labels.txt -> LABEL[ip]
+  local ip name
+  LABEL=()
+  [ -f "$BASE/labels.txt" ] || return
+  while read -r ip name; do
+    [[ -z "$ip" || "$ip" == \#* ]] || LABEL[$ip]="$name"
+  done < "$BASE/labels.txt"
+}
+
+# What to call a host. Your labels win; device-reported names and guesses
+# get a "~" so they never look like something you confirmed.
+display_name() { # display_name <ip> <discovered name>
+  if [ -n "${LABEL[$1]:-}" ]; then printf '%s' "${LABEL[$1]}"
+  elif [ -n "$2" ]; then printf '~%s' "$2"
+  elif [[ "$1" == *.1 ]]; then printf '~gateway'
+  fi
+}
+
 load_data() {
   [ -f "$BASE/last_run" ] || return
   local key ip port name _
@@ -86,16 +105,17 @@ load_data() {
     RUN=$(cat "$BASE/last_run")
     HOSTS=$(sort -t. -k4,4n "$RUN/hosts.txt" 2>/dev/null)
     NHOST=$(grep -c . <<< "$HOSTS")
-    PMAP=(); NEWSET=(); LABEL=()
+    PMAP=(); NEWSET=(); NAME=()
     [ -f "$RUN/ports.txt" ] && while read -r ip port _; do
       [ -n "$ip" ] && PMAP[$ip]+="${port%/*} "
     done < "$RUN/ports.txt"
     [ -f "$RUN/new_hosts.txt" ] && while read -r ip; do
       [ -n "$ip" ] && NEWSET[$ip]=1
     done < "$RUN/new_hosts.txt"
-    [ -f "$BASE/labels.txt" ] && while read -r ip name; do
-      [[ -z "$ip" || "$ip" == \#* ]] || LABEL[$ip]="$name"
-    done < "$BASE/labels.txt"
+    [ -f "$RUN/names.txt" ] && while read -r ip name _; do
+      [ -n "$ip" ] && NAME[$ip]="$name"
+    done < "$RUN/names.txt"
+    load_labels
     SCAN_START=""; SCAN_END=""
     [ -f "$RUN/meta" ] && read -r SCAN_START SCAN_END < "$RUN/meta"
     PUB=$(cat "$BASE/public_ip" 2>/dev/null)
@@ -136,16 +156,17 @@ render() {
   # ---- hosts ----
   out+="${PADX}${E}[K"$'\n'
   out+="${PADX}${GRN}▌${R} ${BLD}HOSTS${R} ${GRY}// ${NHOST:-0} online${R}${E}[K"$'\n'
-  local ip lbl p bullet fixed room
+  local ip lbl lcol p bullet ipcol lblcol room
   while read -r ip; do
     [ -z "$ip" ] && continue
-    lbl="${LABEL[$ip]:-}"
-    [ -z "$lbl" ] && [[ "$ip" == *.1 ]] && lbl="gateway"
+    lbl=$(display_name "$ip" "${NAME[$ip]:-}"); lbl="${lbl:--}"
+    lcol=""; [[ "$lbl" == "~"* || "$lbl" == "-" ]] && lcol="$GRY"
     p="${PMAP[$ip]:-}"; p="${p% }"; [ -z "$p" ] && p="-"
     if [ -n "${NEWSET[$ip]:-}" ]; then bullet="${YEL}+${R}"; else bullet="${GRN}●${R}"; fi
-    fixed="$(printf '%-15s ' "$ip")$(padr "$(fit "${lbl:--}" 10)" 10) "
-    room=$((BW - 4 - ${#fixed}))
-    out+="${PADX}  ${bullet} ${fixed}${GRY}$(fit "$p" $room)${R}${E}[K"$'\n'
+    ipcol=$(printf '%-15s ' "$ip")
+    lblcol="$(padr "$(fit "$lbl" 10)" 10) "
+    room=$((BW - 4 - ${#ipcol} - ${#lblcol}))
+    out+="${PADX}  ${bullet} ${ipcol}${lcol}${lblcol}${R}${GRY}$(fit "$p" $room)${R}${E}[K"$'\n'
   done <<< "$HOSTS"
 
   # ---- events ----
@@ -222,8 +243,10 @@ alerts=()
 alert() { alerts+=("$*"); }
 
 # ---- 1) discovery + port scan ----
-nmap -sn --unprivileged -T4 -oG "$RUN/ping.gnmap" "$SUBNET" >/dev/null 2>&1
-nmap -sT -Pn -T4 --max-retries 1 --host-timeout 60s --open \
+# Termux resolv.conf points at public DNS, which cannot name LAN hosts; ask the router.
+dns=(-n); [ -n "$NAME_DNS" ] && dns=(--dns-servers "$NAME_DNS")
+nmap -sn --unprivileged -T4 "${dns[@]}" -oG "$RUN/ping.gnmap" "$SUBNET" >/dev/null 2>&1
+nmap -sT -Pn -n -T4 --max-retries 1 --host-timeout 60s --open \
      -p "$PORTS" -oG "$RUN/scan.gnmap" "$SUBNET" >/dev/null 2>&1
 
 # normalize to "IP port/proto service"
@@ -239,6 +262,32 @@ done | sort -u > "$RUN/ports.txt"
   | sort -u > "$RUN/hosts.txt"
 
 [ -s "$RUN/hosts.txt" ] || alert SCAN_EMPTY "no hosts (check wifi / SUBNET)"
+
+# ---- 1b) host names (device-reported: shown, never trusted) ----
+declare -A HNAME=() HSRC=()
+add_name() { # add_name <ip> <raw name> <source>; first source wins
+  local n="${2%%.*}"
+  n="${n,,}"; n="${n// /-}"; n="${n//[^a-z0-9-]/}"; n="${n:0:15}"
+  [ -n "$1" ] && [ -n "$n" ] && [ -z "${HNAME[$1]:-}" ] && { HNAME[$1]="$n"; HSRC[$1]="$3"; }
+}
+
+# reverse DNS: "Host: 192.168.35.23 (galaxy-s9.lan)	Status: Up"
+while read -r ip n; do add_name "$ip" "$n" rdns; done < <(
+  awk '/Status: Up/ { n=$3; gsub(/[()]/, "", n); if (n != "") print $2, n }' "$RUN/ping.gnmap")
+
+# NetBIOS for the rest (Windows / Samba). Optional: a failure just leaves names empty.
+grep -vxF -f <(printf '%s\n' "${!HNAME[@]}") "$RUN/hosts.txt" > "$RUN/nameless.txt"
+if [ -s "$RUN/nameless.txt" ]; then
+  timeout 120 nmap -sn -Pn -n --unprivileged --script nbstat \
+    -iL "$RUN/nameless.txt" -oN "$RUN/nbstat.txt" >/dev/null 2>&1
+  [ -f "$RUN/nbstat.txt" ] && while read -r ip n; do add_name "$ip" "$n" netbios; done < <(
+    awk '/^Nmap scan report for/ { ip=$NF; gsub(/[()]/, "", ip) }
+         /NetBIOS name:/ { s=$0; sub(/.*NetBIOS name: /, "", s); sub(/,.*/, "", s); print ip, s }' \
+      "$RUN/nbstat.txt")
+fi
+
+for ip in "${!HNAME[@]}"; do echo "$ip ${HNAME[$ip]} ${HSRC[$ip]}"; done \
+  | sort -t. -k4,4n > "$RUN/names.txt"
 
 # ---- 2) MAC addresses (may be blocked on Android 10+) ----
 if ip neigh 2>/dev/null | grep -q lladdr; then
@@ -261,6 +310,21 @@ if ! $first_run; then
   while read -r p; do [ -n "$p" ] && alert NEW_PORT "$p"; done \
     < <(comm -13 "$BASE/seen_ports.txt" "$RUN/ports.txt")
 fi
+
+# A labeled (reserved) IP reporting a different name may now be another device.
+load_labels
+declare -A LASTNAME=()
+[ -f "$BASE/last_names.txt" ] && while read -r ip n; do
+  [ -n "$ip" ] && LASTNAME[$ip]="$n"
+done < "$BASE/last_names.txt"
+for ip in "${!HNAME[@]}"; do
+  old="${LASTNAME[$ip]:-}"
+  [ -n "${LABEL[$ip]:-}" ] && [ -n "$old" ] && [ "$old" != "${HNAME[$ip]}" ] && \
+    alert NAME_CHANGED "$ip $old -> ${HNAME[$ip]}"
+  LASTNAME[$ip]="${HNAME[$ip]}"
+done
+for ip in "${!LASTNAME[@]}"; do echo "$ip ${LASTNAME[$ip]}"; done \
+  | sort -t. -k4,4n > "$BASE/last_names.txt"
 
 # ---- 4) WAN: public IP + UPnP port forwards ----
 PUB=$(curl -s --max-time 10 https://ifconfig.me)
@@ -300,7 +364,8 @@ fi
   echo
   while read -r h; do
     [ -z "$h" ] && continue
-    printf '  %-16s %s\n' "$h" "$(awk -v ip="$h" '$1==ip{printf "%s ", $2}' "$RUN/ports.txt")"
+    n=$(display_name "$h" "${HNAME[$h]:-}")
+    printf '  %-16s %-16s %s\n' "$h" "${n:--}" "$(awk -v ip="$h" '$1==ip{printf "%s ", $2}' "$RUN/ports.txt")"
   done < <(sort -t. -k4,4n "$RUN/hosts.txt")
   if [ -s "$RUN/upnp.txt" ]; then echo; echo "upnp:"; sed 's/^/  /' "$RUN/upnp.txt"; fi
   echo
