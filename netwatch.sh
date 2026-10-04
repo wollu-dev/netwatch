@@ -42,6 +42,12 @@ fit() { # truncate text to width with ellipsis
   printf '%s' "$t"
 }
 
+padr() { # right-pad to width by characters (printf '%-Ns' counts bytes)
+  local t="$1" n=$(( $2 - ${#1} ))
+  (( n > 0 )) && t+=$(rep ' ' "$n")
+  printf '%s' "$t"
+}
+
 row() { # boxed key/value row: row <key> <value> [color]
   local inner=$((BW-4)) v pad
   v=$(fit "$2" $((inner-7)))
@@ -137,7 +143,7 @@ render() {
     [ -z "$lbl" ] && [[ "$ip" == *.1 ]] && lbl="gateway"
     p="${PMAP[$ip]:-}"; p="${p% }"; [ -z "$p" ] && p="-"
     if [ -n "${NEWSET[$ip]:-}" ]; then bullet="${YEL}+${R}"; else bullet="${GRN}●${R}"; fi
-    fixed=$(printf '%-15s %-10s ' "$ip" "$(fit "${lbl:--}" 10)")
+    fixed="$(printf '%-15s ' "$ip")$(padr "$(fit "${lbl:--}" 10)" 10) "
     room=$((BW - 4 - ${#fixed}))
     out+="${PADX}  ${bullet} ${fixed}${GRY}$(fit "$p" $room)${R}${E}[K"$'\n'
   done <<< "$HOSTS"
