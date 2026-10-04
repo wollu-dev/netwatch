@@ -12,7 +12,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](ht
 - `DHCP_POOL` setting. Hosts in the pool are marked with `○` and raise `POOL_HOST` on arrival.
 - `labels.txt` doubles as an allowlist. Hosts outside `DHCP_POOL` that are not listed raise
   `UNLISTED_HOST` on every arrival, even if seen before, and show a red `!` on the dashboard.
-- README section on DHCP reservations and pool layout.
+- README section on DHCP reservations and pool layout, and on running without fixed IPs
+  when the router does not allow them.
 - README section "What netwatch is not": it is a desk display that notices the obvious,
   not a security monitor, with what it can and cannot detect.
 ### Changed

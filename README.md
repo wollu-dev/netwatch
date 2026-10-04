@@ -158,6 +158,23 @@ a new gadget, or something that should not be there.
 The split is a convention that well-behaved devices follow, not a security boundary.
 Anyone on your network can set their own IP outside the pool, or reuse one of yours.
 
+### Without fixed IPs
+
+Some ISP routers allow only a couple of reservations and give no internet access to
+addresses outside their DHCP range, so the setup above is not possible. netwatch still
+works without it: most routers hand the same IP back to the same MAC, so addresses at
+home change rarely.
+
+1. Leave every device on DHCP, with a stable MAC (*Off* or *Fixed*, not *Rotating*).
+   Use the few reservations you have for always-on devices such as a NAS.
+2. Set `DHCP_POOL=""`.
+3. Fill `labels.txt` with the addresses the devices have now (the router's client list
+   shows them).
+
+When an address changes, the device shows up as `UNLISTED_HOST` under its new IP: check
+the router's client list and update `labels.txt`. The same alert also covers guests and
+unknown devices, so look before you dismiss it.
+
 ## Events
 
 Logged to `~/netwatch/alerts.log` as `YYYY-MM-DD HH:MM:SS TAG detail`.
